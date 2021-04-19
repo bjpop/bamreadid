@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+
+# Get the read identifer from the first read in a BAM file.
+
+# Authors: Bernie Pope, bjpope@unimelb.edu.au
+
+# Dependencies: bash, samtools, awk
+
+# Notes: 
+# Resources about sequencing identifiers:
+# https://readthedocs.org/projects/illumina-fastq/downloads/pdf/latest/
+# https://en.wikipedia.org/wiki/FASTQ_format#Illumina_sequence_identifiers
+#
+# The Illumina FASTQ Att line format (as of CASAVA 1.8 at least) is:
+# @<instrument-name>:<run ID>:<flowcell ID>:<lane>:<tile>:<x-pos>:<y-pos> <read number>:<is filtered>:<control number>:<barcode sequence>
+# This script just collects the "read id" from the first read in the BAM file. The intention
+# is that we will process this data after it is all collected with a separate script.
+
+program_name="bamreadid"
+bamfile=""
+
+# Help message for using the program.
+function show_help {
+
+cat << UsageMessage
+${program_name}: Get the read identifer from the first read in a BAM file. 
+Usage:
+    ${program_name} [-h] -i input_bam_file_name 
+
+   -i <input_bam_file_name> is required, this specifies the input BAM file name
+
+   -h                       displays an help message
+                     
+Example:
+    ${program_name} -i example.bam 
+Dependencies:
+   The following tools must be installed on your computer to use this script,
+   and be accessible via the PATH environment variable:
+   - bash 
+   - samtools 
+   - awk
+UsageMessage
+}
+
+
+# echo an error message $1 and exit with status $2
+function exit_with_error {
+    error_message=$1
+    exit_status_value=$2
+    printf "${program_name}: ERROR: ${error_message}\n"
+    exit ${exit_status_value}
+}
+
+
+# Parse the command line arguments and set the global variables language and new_project_name
+function parse_args {
+    local OPTIND opt
+
+    while getopts "hi:" opt; do
+        case "${opt}" in
+            h)
+                show_help
+                exit 0
+                ;;
+            i)  bamfile="${OPTARG}"
+                ;;
+        esac
+    done
+
+    shift $((OPTIND-1))
+
+    [ "$1" = "--" ] && shift
+
+    if [[ -z ${bamfile} ]]; then
+		exit_with_error "missing command line argument: -i bamfile, use -h for help" 2
+    fi
+}
+
+function check_dependencies {
+    # Check for samtools 
+    samtools --version > /dev/null || {
+       exit_with_error "samtools is not installed in the PATH\nPlease install samtools, and ensure it can be found in your PATH variable." 1
+    }
+    # Check for samtools 
+    awk --version > /dev/null || {
+       exit_with_error "awk is not installed in the PATH\nPlease install awk, and ensure it can be found in your PATH variable." 1
+    }
+}
+
+# Check if the directory for the new project already exists.
+function check_bamfile_exists {
+    if test -r "${bamfile}" -a -f "${bamfile}"; then
+        # Do nothing, file exists
+        : 
+    else
+        exit_with_error "bam file ${bamfile} does not exist or is not readable." 1
+    fi
+}
+
+function get_readid {
+    samtools view ${bamfile} | head -1 | awk '{print $1}'
+}
+
+# Parse command line arguments.
+parse_args "$@"
+# Check that dependencies are met
+check_dependencies 
+# Check that the bam file exists as is readable
+check_bamfile_exists
+# calculate read len
+get_readid
+
+exit 0 
